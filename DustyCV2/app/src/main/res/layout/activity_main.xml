@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <com.ortiz.touchview.TouchImageView
+        android:id="@+id/touchImageView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitCenter" />
+
+    <com.lapentad.dustycv.CropOverlayView
+        android:id="@+id/cropOverlayView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        tools:visibility="visible" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/btnChoose"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_margin="16dp"
+        android:contentDescription="Choose Image"
+        app:backgroundTint="@color/fab_choose"
+        app:rippleColor="@color/fab_ripple"
+        app:srcCompat="@android:drawable/ic_menu_gallery"
+        app:tint="@color/fab_icon_tint" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/btnProcess"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center"
+        android:layout_margin="16dp"
+        android:contentDescription="Process Image"
+        app:backgroundTint="@color/fab_process"
+        app:rippleColor="@color/fab_ripple"
+        app:srcCompat="@android:drawable/ic_menu_edit"
+        app:tint="@color/fab_icon_tint" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/btnResize"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="80dp"
+        android:contentDescription="Resize Image"
+        app:backgroundTint="@color/fab_resize"
+        app:rippleColor="@color/fab_ripple"
+        app:srcCompat="@android:drawable/ic_menu_crop"
+        app:tint="@color/fab_icon_tint" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/btnShare"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:contentDescription="Share Image"
+        app:backgroundTint="@color/fab_share"
+        app:rippleColor="@color/fab_ripple"
+        app:srcCompat="@android:drawable/ic_menu_share"
+        app:tint="@color/fab_icon_tint" />
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
