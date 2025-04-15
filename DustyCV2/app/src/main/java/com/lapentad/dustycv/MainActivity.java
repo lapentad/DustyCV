@@ -42,6 +42,7 @@ public class MainActivity extends AppCompatActivity {
     private CropOverlayView cropOverlayView;
     private boolean isCropping = false;
     private com.google.android.material.floatingactionbutton.FloatingActionButton btnResize;
+    private EffectParameters effectParameters = new EffectParameters();
 
     private static final int PERMISSION_REQUEST_CODE = 100;
 
@@ -108,6 +109,7 @@ public class MainActivity extends AppCompatActivity {
         com.google.android.material.floatingactionbutton.FloatingActionButton btnChoose = findViewById(R.id.btnChoose);
         com.google.android.material.floatingactionbutton.FloatingActionButton btnProcess = findViewById(R.id.btnProcess);
         com.google.android.material.floatingactionbutton.FloatingActionButton btnShare = findViewById(R.id.btnShare);
+        com.google.android.material.floatingactionbutton.FloatingActionButton btnSettings = findViewById(R.id.btnSettings);
         btnResize = findViewById(R.id.btnResize);
         imageView = findViewById(R.id.touchImageView);
         cropOverlayView = findViewById(R.id.cropOverlayView);
@@ -136,6 +138,16 @@ public class MainActivity extends AppCompatActivity {
             if (processedBitmap != null) {
                 shareImage(processedBitmap);
             }
+        });
+        btnSettings.setOnClickListener(v -> {
+            EffectsSettingsDialog dialog = EffectsSettingsDialog.newInstance(effectParameters, parameters -> {
+                effectParameters = parameters;
+                if (originalBitmap != null) {
+                    processedBitmap = applyFilmLook(originalBitmap);
+                    imageView.setImageBitmap(processedBitmap);
+                }
+            });
+            dialog.show(getSupportFragmentManager(), "effects_settings");
         });
         btnResize.setOnClickListener(v -> {
             if (originalBitmap != null) {
@@ -186,7 +198,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private Bitmap applyFilmLook(Bitmap bitmap) {
-        return ImageProcessor.applyFilmLook(bitmap);
+        return ImageProcessor.applyFilmLook(bitmap, effectParameters);
     }
 
     private void shareImage(Bitmap bitmap) {

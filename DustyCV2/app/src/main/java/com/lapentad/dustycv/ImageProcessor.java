@@ -18,7 +18,7 @@ import java.util.List;
 public class ImageProcessor {
     private static final String TAG = "ImageProcessor";
 
-    public static Bitmap applyFilmLook(Bitmap bitmap) {
+    public static Bitmap applyFilmLook(Bitmap bitmap, EffectParameters parameters) {
         if (bitmap == null || bitmap.isRecycled()) {
             Log.e(TAG, "Invalid bitmap provided to applyFilmLook");
             return null;
@@ -41,11 +41,11 @@ public class ImageProcessor {
             double brightness = getImageBrightness(src);
             double effectStrength = getEffectStrength(brightness);
 
-            // Apply effects with dynamic strength
-            addHalation(src, effectStrength);
+            // Apply effects with dynamic strength and parameters
+            addHalation(src, effectStrength, parameters);
             applyToneCurve(src, effectStrength);
-            addSoftBloom(src, effectStrength);
-            addGrain(src, effectStrength * 5);
+            addSoftBloom(src, effectStrength, parameters);
+            addGrain(src, effectStrength * 5, parameters);
 
             // No need to convert back, keep original format
             Imgproc.cvtColor(src, src, Imgproc.COLOR_BGR2RGBA);
@@ -168,26 +168,26 @@ public class ImageProcessor {
         return lut;
     }
 
-    private static void addGrain(Mat img, double strength) {
+    private static void addGrain(Mat img, double strength, EffectParameters parameters) {
         Mat noise = new Mat(img.size(), CvType.CV_8UC1);
         Core.randn(noise, 128, 20); // Increased noise intensity
 
         Mat noiseBGR = new Mat();
         Imgproc.cvtColor(noise, noiseBGR, Imgproc.COLOR_GRAY2BGR);
 
-        // Stronger grain effect
-        Core.addWeighted(img, 1.0, noiseBGR, 0.08 * strength, 0, img);
+        // Apply grain effect with intensity from parameters
+        Core.addWeighted(img, 1.0, noiseBGR, 0.08 * strength * parameters.getGrainIntensity() / 5.0, 0, img);
         
         noise.release();
         noiseBGR.release();
     }
 
-    private static void addHalation(Mat img, double strength) {
+    private static void addHalation(Mat img, double strength, EffectParameters parameters) {
         // Adjustable parameters
         int brightnessThreshold = 200;    // Higher value = only brighter areas affected (0-255)
-        int blurKernelSize = 75;          // Larger value = more spread out glow
+        int blurKernelSize = parameters.getHalationSize() | 1;  // Ensure odd number
         double redIntensity = 255.0;      // Red color intensity (0-255)
-        double effectStrength = 0.5;      // Overall effect strength (0.0-1.0)
+        double effectStrength = parameters.getHalationIntensity();  // Use parameter for strength
         double warmTone = 0.4;            // Additional warm tone (0.0-1.0)
         
         // Edge detection parameters
@@ -293,7 +293,7 @@ public class ImageProcessor {
         }
     }
 
-    private static void addSoftBloom(Mat img, double strength) {
+    private static void addSoftBloom(Mat img, double strength, EffectParameters parameters) {
         // Convert to Lab for better highlight detection
         Mat lab = new Mat();
         Imgproc.cvtColor(img, lab, Imgproc.COLOR_BGR2Lab);
@@ -306,9 +306,10 @@ public class ImageProcessor {
         Mat highlightMask = new Mat();
         Imgproc.threshold(channels.get(0), highlightMask, 200, 255, Imgproc.THRESH_BINARY);
         
-        // Apply Gaussian blur with odd kernel size
+        // Apply Gaussian blur with size from parameters (ensure odd number)
+        int bloomSize = parameters.getBloomSize() | 1;
         Mat bloom = new Mat();
-        Imgproc.GaussianBlur(highlightMask, bloom, new Size(45, 45), 0);
+        Imgproc.GaussianBlur(highlightMask, bloom, new Size(bloomSize, bloomSize), 0);
         
         // Normalize bloom
         Core.normalize(bloom, bloom, 0, 1, Core.NORM_MINMAX, CvType.CV_32F);
@@ -329,8 +330,8 @@ public class ImageProcessor {
         Mat bloomEffect = new Mat();
         Core.multiply(imgFloat, bloomMask, bloomEffect);
         
-        // Blend with original
-        double effectStrength = strength * 0.3;
+        // Blend with original using intensity from parameters
+        double effectStrength = strength * parameters.getBloomIntensity();
         Core.addWeighted(imgFloat, 1.0 - effectStrength, bloomEffect, effectStrength, 0, imgFloat);
         
         // Convert back to original type
