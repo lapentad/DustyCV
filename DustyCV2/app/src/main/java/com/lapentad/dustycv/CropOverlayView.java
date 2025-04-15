@@ -10,14 +10,15 @@ import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
 
+import androidx.annotation.NonNull;
+
 public class CropOverlayView extends View {
     private Paint borderPaint;
     private Paint cornerPaint;
     private Paint overlayPaint;
     private Bitmap imageBitmap;
     private RectF cropRect;
-    private float cornerSize = 50;
-    private float touchTolerance = 20;
+    private final float cornerSize = 50;
     private boolean isDragging = false;
     private boolean isResizing = false;
     private int activeCorner = -1;
@@ -25,7 +26,6 @@ public class CropOverlayView extends View {
     private float scale = 1.0f;
     private float offsetX = 0;
     private float offsetY = 0;
-    private float padding = 50; // Padding in pixels
 
     public CropOverlayView(Context context) {
         super(context);
@@ -59,6 +59,8 @@ public class CropOverlayView extends View {
             int height = getMeasuredHeight();
             
             // Calculate scale to fit the image with padding
+            // Padding in pixels
+            float padding = 50;
             float availableWidth = width - (2 * padding);
             float availableHeight = height - (2 * padding);
             float scaleX = availableWidth / imageBitmap.getWidth();
@@ -106,7 +108,7 @@ public class CropOverlayView extends View {
     }
 
     @Override
-    protected void onDraw(Canvas canvas) {
+    protected void onDraw(@NonNull Canvas canvas) {
         super.onDraw(canvas);
         if (imageBitmap == null || cropRect == null) return;
 
@@ -182,11 +184,19 @@ public class CropOverlayView extends View {
                 isDragging = false;
                 isResizing = false;
                 activeCorner = -1;
+                if (isClickable()) {
+                    performClick();
+                }
                 return true;
         }
         return false;
     }
 
+    @Override
+    public boolean performClick() {
+        super.performClick();
+        return true;
+    }
     private int getCornerAt(float x, float y) {
         float[] corners = {
             cropRect.left, cropRect.top,
@@ -196,7 +206,8 @@ public class CropOverlayView extends View {
         };
 
         for (int i = 0; i < 8; i += 2) {
-            if (Math.abs(x - corners[i]) < touchTolerance && 
+            float touchTolerance = 20;
+            if (Math.abs(x - corners[i]) < touchTolerance &&
                 Math.abs(y - corners[i + 1]) < touchTolerance) {
                 return i / 2;
             }
