@@ -5,14 +5,21 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.ImageButton;
+import android.widget.Spinner;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.DialogFragment;
 
 import com.google.android.material.slider.Slider;
+
+import java.util.Objects;
 
 public class EffectsSettingsDialog extends DialogFragment {
     private EffectParameters parameters;
@@ -39,6 +46,8 @@ public class EffectsSettingsDialog extends DialogFragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
+        Spinner filmTypeSpinner = view.findViewById(R.id.spinnerFilmType);
+        ImageButton btnFilmInfo = view.findViewById(R.id.btnFilmInfo);
         Slider grainIntensitySlider = view.findViewById(R.id.sliderGrainIntensity);
         Slider halationIntensitySlider = view.findViewById(R.id.sliderHalationIntensity);
         Slider halationSizeSlider = view.findViewById(R.id.sliderHalationSize);
@@ -52,7 +61,41 @@ public class EffectsSettingsDialog extends DialogFragment {
         TextView textBloomIntensity = view.findViewById(R.id.textBloomIntensity);
         TextView textBloomSize = view.findViewById(R.id.textBloomSize);
 
-        // Set initial values
+        // Set up film info button
+        btnFilmInfo.setOnClickListener(v -> showFilmInfoDialog());
+
+        // Set up film type spinner
+        String[] filmTypes = {
+            getString(R.string.film_type_neutral),
+            getString(R.string.film_type_kodak_50d),
+            getString(R.string.film_type_kodak_200t),
+            getString(R.string.film_type_kodak_250d),
+            getString(R.string.film_type_kodak_500t)
+        };
+        
+        ArrayAdapter<String> filmTypeAdapter = new ArrayAdapter<>(
+            requireContext(), android.R.layout.simple_spinner_item, filmTypes);
+        filmTypeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        filmTypeSpinner.setAdapter(filmTypeAdapter);
+        
+        // Set initial selection based on current film type
+        filmTypeSpinner.setSelection(parameters.getFilmType().ordinal());
+        
+        // Set spinner listener
+        filmTypeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                EffectParameters.FilmType selectedType = EffectParameters.FilmType.values()[position];
+                parameters.setFilmType(selectedType);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                // Do nothing
+            }
+        });
+
+        // Set initial values for other controls
         grainIntensitySlider.setValue(parameters.getGrainIntensity());
         halationIntensitySlider.setValue(parameters.getHalationIntensity());
         halationSizeSlider.setValue(parameters.getHalationSize());
@@ -100,6 +143,21 @@ public class EffectsSettingsDialog extends DialogFragment {
         });
     }
 
+    private void showFilmInfoDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
+        View infoView = getLayoutInflater().inflate(R.layout.dialog_film_info, null);
+        
+        builder.setView(infoView);
+        
+        AlertDialog dialog = builder.create();
+        
+        // Set up close button
+        Button btnClose = infoView.findViewById(R.id.btnCloseInfo);
+        btnClose.setOnClickListener(v -> dialog.dismiss());
+        
+        dialog.show();
+    }
+
     private void updateTextView(TextView textView, int formatResId, float value) {
         String format = getString(formatResId);
         textView.setText(String.format(format, value));
@@ -115,7 +173,7 @@ public class EffectsSettingsDialog extends DialogFragment {
         super.onStart();
         Dialog dialog = getDialog();
         if (dialog != null) {
-            dialog.getWindow().setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            Objects.requireNonNull(dialog.getWindow()).setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
     }
 } 

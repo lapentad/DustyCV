@@ -15,10 +15,12 @@ import androidx.annotation.NonNull;
 public class CropOverlayView extends View {
     private Paint borderPaint;
     private Paint cornerPaint;
+    private Paint activeCornerPaint;
     private Paint overlayPaint;
     private Bitmap imageBitmap;
     private RectF cropRect;
-    private final float cornerSize = 50;
+    private float cornerSize = 80;
+    private float touchTolerance = 50;
     private boolean isDragging = false;
     private boolean isResizing = false;
     private int activeCorner = -1;
@@ -41,11 +43,15 @@ public class CropOverlayView extends View {
         borderPaint = new Paint();
         borderPaint.setColor(Color.WHITE);
         borderPaint.setStyle(Paint.Style.STROKE);
-        borderPaint.setStrokeWidth(3);
+        borderPaint.setStrokeWidth(5);
 
         cornerPaint = new Paint();
         cornerPaint.setColor(Color.WHITE);
         cornerPaint.setStyle(Paint.Style.FILL);
+        
+        activeCornerPaint = new Paint();
+        activeCornerPaint.setColor(Color.YELLOW);
+        activeCornerPaint.setStyle(Paint.Style.FILL);
 
         overlayPaint = new Paint();
         overlayPaint.setColor(Color.argb(128, 0, 0, 0));
@@ -81,6 +87,10 @@ public class CropOverlayView extends View {
     public void setImageBitmap(Bitmap bitmap) {
         this.imageBitmap = bitmap;
         if (bitmap != null) {
+            // Calculate dynamic corner size & touch tolerance based on image dimensions
+            float base = Math.min(bitmap.getWidth(), bitmap.getHeight());
+            cornerSize = Math.max(20f, base * 0.05f);
+            touchTolerance = cornerSize * 0.75f;
             // Initialize crop rect to match image dimensions
             cropRect = new RectF(0, 0, bitmap.getWidth(), bitmap.getHeight());
             // Request layout to recalculate scale and offsets
@@ -132,7 +142,17 @@ public class CropOverlayView extends View {
         };
 
         for (int i = 0; i < 8; i += 2) {
-            canvas.drawCircle(corners[i], corners[i + 1], cornerSize / 2, cornerPaint);
+            int cornerIndex = i / 2;
+            Paint paint = (activeCorner == cornerIndex && isResizing) ? activeCornerPaint : cornerPaint;
+            canvas.drawCircle(corners[i], corners[i + 1], cornerSize / 2, paint);
+        }
+        
+        if (isDragging) {
+            canvas.drawRect(
+                cropRect.left + 10, cropRect.top + 10,
+                cropRect.right - 10, cropRect.bottom - 10,
+                borderPaint
+            );
         }
         
         canvas.restore();
@@ -153,6 +173,8 @@ public class CropOverlayView extends View {
                 activeCorner = getCornerAt(x, y);
                 isDragging = activeCorner == -1;
                 isResizing = activeCorner != -1;
+                
+                invalidate();
                 return true;
 
             case MotionEvent.ACTION_MOVE:
@@ -183,7 +205,7 @@ public class CropOverlayView extends View {
             case MotionEvent.ACTION_UP:
                 isDragging = false;
                 isResizing = false;
-                activeCorner = -1;
+                invalidate();
                 if (isClickable()) {
                     performClick();
                 }
@@ -197,6 +219,7 @@ public class CropOverlayView extends View {
         super.performClick();
         return true;
     }
+    
     private int getCornerAt(float x, float y) {
         float[] corners = {
             cropRect.left, cropRect.top,
@@ -206,7 +229,6 @@ public class CropOverlayView extends View {
         };
 
         for (int i = 0; i < 8; i += 2) {
-            float touchTolerance = 20;
             if (Math.abs(x - corners[i]) < touchTolerance &&
                 Math.abs(y - corners[i + 1]) < touchTolerance) {
                 return i / 2;

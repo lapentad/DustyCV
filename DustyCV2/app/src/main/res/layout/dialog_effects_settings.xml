@@ -10,6 +10,39 @@
         android:orientation="vertical"
         android:padding="16dp">
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/film_type"
+                android:textSize="18sp"
+                android:textStyle="bold"/>
+
+            <ImageButton
+                android:id="@+id/btnFilmInfo"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@android:drawable/ic_menu_info_details"
+                android:contentDescription="@string/film_info"
+                android:background="?attr/selectableItemBackgroundBorderless"/>
+        </LinearLayout>
+
+        <Spinner
+            android:id="@+id/spinnerFilmType"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:contentDescription="@string/film_type_description"
+            android:layout_marginBottom="16dp" />
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -24,9 +57,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:valueFrom="0"
-            android:valueTo="10"
+            android:valueTo="15"
             android:value="5"
-            android:stepSize="0.1"
+            android:stepSize="0.5"
             android:contentDescription="@string/grain_intensity_format"
             app:labelBehavior="floating"/>
 

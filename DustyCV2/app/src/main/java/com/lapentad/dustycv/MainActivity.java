@@ -135,8 +135,12 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         btnShare.setOnClickListener(v -> {
-            if (processedBitmap != null) {
-                shareImage(processedBitmap);
+            // Share the current image: processed if available, otherwise original
+            Bitmap toShare = processedBitmap != null ? processedBitmap : originalBitmap;
+            if (toShare != null) {
+                shareImage(toShare);
+            } else {
+                Toast.makeText(MainActivity.this, "Please select or process an image first", Toast.LENGTH_SHORT).show();
             }
         });
         btnSettings.setOnClickListener(v -> {

@@ -41,11 +41,17 @@ public class ImageProcessor {
             double brightness = getImageBrightness(src);
             double effectStrength = getEffectStrength(brightness);
 
+            // Apply film type color adjustments
+            applyFilmColorBalance(src, parameters);
+            
             // Apply effects with dynamic strength and parameters
             addHalation(src, effectStrength, parameters);
-            applyToneCurve(src, effectStrength);
+            applyToneCurve(src, effectStrength, parameters);
             addSoftBloom(src, effectStrength, parameters);
-            addGrain(src, effectStrength * 5, parameters);
+            
+            // Apply grain with film-specific adjustments
+            float grainMultiplier = parameters.getFilmGrainMultiplier();
+            addGrain(src, effectStrength * grainMultiplier * 4.0, parameters);
 
             // No need to convert back, keep original format
             Imgproc.cvtColor(src, src, Imgproc.COLOR_BGR2RGBA);
@@ -86,9 +92,48 @@ public class ImageProcessor {
         return 0.4 + (0.5 / (1.0 + Math.exp(-12.0 * (normalizedBrightness - 0.5))));
     }
 
-    private static void applyToneCurve(Mat img, double strength) {
+    private static void applyFilmColorBalance(Mat img, EffectParameters parameters) {
+        // Split the image into color channels
+        List<Mat> channels = new ArrayList<>();
+        Core.split(img, channels);
+        
+        // Get the color adjustments from parameters
+        float redTint = parameters.getRedTint();
+        float greenTint = parameters.getGreenTint();
+        float blueTint = parameters.getBlueTint();
+        
+        // Apply the film-specific color adjustments to each channel
+        Mat adjustedB = new Mat();
+        Mat adjustedG = new Mat();
+        Mat adjustedR = new Mat();
+        
+        // OpenCV uses BGR order
+        Core.multiply(channels.get(0), new Scalar(blueTint), adjustedB);
+        Core.multiply(channels.get(1), new Scalar(greenTint), adjustedG);
+        Core.multiply(channels.get(2), new Scalar(redTint), adjustedR);
+        
+        // Merge the adjusted channels back
+        channels.set(0, adjustedB);
+        channels.set(1, adjustedG);
+        channels.set(2, adjustedR);
+        Core.merge(channels, img);
+        
+        // Clean up
+        adjustedB.release();
+        adjustedG.release();
+        adjustedR.release();
+        for (Mat ch : channels) {
+            ch.release();
+        }
+    }
+
+    private static void applyToneCurve(Mat img, double strength, EffectParameters parameters) {
         Imgproc.cvtColor(img, img, Imgproc.COLOR_BGR2Lab);
-        Mat lut = getLut(strength);
+        
+        // Get film-specific contrast
+        float filmContrast = parameters.getFilmContrast();
+        
+        Mat lut = getLut(strength, filmContrast);
 
         // Split image into channels
         List<Mat> channels = new ArrayList<>();
@@ -105,11 +150,19 @@ public class ImageProcessor {
         channels.get(0).convertTo(lFloat, CvType.CV_32F);
         Core.normalize(lFloat, lFloat, 0, 1, Core.NORM_MINMAX);
 
-        // Create warm adjustments
+        // Create warm adjustments based on film type
         Mat warmA = new Mat();
         Mat warmB = new Mat();
-        Core.multiply(lFloat, new Scalar(2.0), warmA);  // Slight red in highlights
-        Core.multiply(lFloat, new Scalar(5.0), warmB);  // Yellow boost in highlights
+        
+        float redTint = parameters.getRedTint();
+        float blueTint = parameters.getBlueTint();
+        
+        // Adjust a and b channels based on film type (a: red-green, b: yellow-blue)
+        float aAdjust = (redTint - 1.0f) * 10.0f;
+        float bAdjust = (1.0f - blueTint) * 10.0f;
+        
+        Core.multiply(lFloat, new Scalar(aAdjust), warmA);  // Adjust red/green
+        Core.multiply(lFloat, new Scalar(bAdjust), warmB);  // Adjust yellow/blue
 
         Core.add(aFloat, warmA, aFloat);
         Core.add(bFloat, warmB, bFloat);
@@ -140,25 +193,25 @@ public class ImageProcessor {
         Imgproc.cvtColor(img, img, Imgproc.COLOR_Lab2BGR);
     }
 
-    private static Mat getLut(double strength) {
+    private static Mat getLut(double strength, float contrastFactor) {
         Mat lut = new Mat(1, 256, CvType.CV_8UC1);
         for (int i = 0; i < 256; i++) {
             double x = i / 255.0;
 
-            // Film print characteristic curve
+            // Film print characteristic curve (with contrast adjustment)
             double y;
             if (x < 0.2) {
                 // Rich shadows with detail
-                y = x * 0.7;
+                y = x * (0.7 * contrastFactor);
             } else if (x < 0.5) {
                 // Smooth mid tones
-                y = 0.14 + (x - 0.2) * 0.8;
+                y = 0.14 + (x - 0.2) * (0.8 * contrastFactor);
             } else if (x < 0.8) {
                 // Gentle highlight roll off
-                y = 0.38 + (x - 0.5) * 0.9;
+                y = 0.38 + (x - 0.5) * (0.9 * contrastFactor);
             } else {
                 // Protected highlights
-                y = 0.65 + (x - 0.8) * 0.7;
+                y = 0.65 + (x - 0.8) * (0.7 * contrastFactor);
             }
 
             // Apply strength with film-like response
@@ -169,17 +222,154 @@ public class ImageProcessor {
     }
 
     private static void addGrain(Mat img, double strength, EffectParameters parameters) {
-        Mat noise = new Mat(img.size(), CvType.CV_8UC1);
-        Core.randn(noise, 128, 20); // Increased noise intensity
-
-        Mat noiseBGR = new Mat();
-        Imgproc.cvtColor(noise, noiseBGR, Imgproc.COLOR_GRAY2BGR);
-
-        // Apply grain effect with intensity from parameters
-        Core.addWeighted(img, 1.0, noiseBGR, 0.08 * strength * parameters.getGrainIntensity() / 5.0, 0, img);
+        // Calculate the image area
+        double imageArea = img.rows() * img.cols();
         
+        // Define a base area for normalization (e.g., 1 megapixel)
+        double baseArea = 1_000_000.0;
+        
+        // Calculate the scaling factor based on the image area
+        double scaleFactor = Math.sqrt(imageArea / baseArea);
+        
+        // Get parameters and adjust for image size
+        float grainIntensity = parameters.getGrainIntensity();
+        
+        // Create grayscale version of the image for grain modulation
+        Mat luminance = new Mat();
+        Imgproc.cvtColor(img, luminance, Imgproc.COLOR_BGR2GRAY);
+        
+        // Create grain with adjustable intensity - lower standard deviation for more subtle effect
+        Mat noise = new Mat(img.size(), CvType.CV_8UC1);
+        double stdDev = 15 + (grainIntensity / 15.0) * 15;  // Range from 15 to 30
+        Core.randn(noise, 128, stdDev);
+        
+        // Optional: For very high grain settings, add some structure
+        if (grainIntensity > 10.0) {
+            // Create structured grain for higher intensities
+            Mat structuredNoise = new Mat(img.size(), CvType.CV_8UC1);
+            Core.randn(structuredNoise, 128, stdDev * 1.5);
+            
+            // Threshold to create clumps
+            Mat thresholdedNoise = new Mat();
+            Imgproc.threshold(structuredNoise, thresholdedNoise, 170, 255, Imgproc.THRESH_BINARY);
+            
+            // Blend with base noise
+            double structureFactor = (grainIntensity - 10.0) / 5.0; // 0.0 to 1.0
+            Core.addWeighted(noise, 1.0 - structureFactor * 0.5, thresholdedNoise, structureFactor * 0.5, 0, noise);
+            
+            structuredNoise.release();
+            thresholdedNoise.release();
+        }
+        
+        // Create luminance-dependent masks (simplified from previous version)
+        Mat shadowMask = new Mat();
+        Mat highlightMask = new Mat();
+        
+        // Use adaptive thresholds for more natural transitions
+        Imgproc.threshold(luminance, shadowMask, 60, 1.0, Imgproc.THRESH_BINARY_INV);
+        Imgproc.threshold(luminance, highlightMask, 200, 1.0, Imgproc.THRESH_BINARY);
+        
+        // Convert to floating point for calculations
+        shadowMask.convertTo(shadowMask, CvType.CV_32F);
+        highlightMask.convertTo(highlightMask, CvType.CV_32F);
+        
+        // Normalize noise to -1 to 1 range for proper overlay
+        Mat normalizedNoise = new Mat();
+        noise.convertTo(normalizedNoise, CvType.CV_32F);
+        Core.subtract(normalizedNoise, new Scalar(128), normalizedNoise);
+        Core.divide(normalizedNoise, new Scalar(128), normalizedNoise);
+        
+        // Split image into channels
+        List<Mat> channels = new ArrayList<>();
+        Core.split(img, channels);
+        
+        // CRITICAL: Use much more subtle grain intensity factor
+        // This is the main fix for the "burning" effect
+        double baseIntensity = 0.02 * strength * Math.min(grainIntensity, 10) / Math.sqrt(scaleFactor);
+        
+        // Apply grain to each channel identically (monochrome grain)
+        for (int i = 0; i < channels.size(); i++) {
+            Mat channel = channels.get(i);
+            Mat channelF = new Mat();
+            channel.convertTo(channelF, CvType.CV_32F);
+            
+            // Apply grain with luminance modulation (more in shadows, less in highlights)
+            Mat grainMask = new Mat(channelF.size(), CvType.CV_32F);
+            
+            // Base grain amount
+            double shadowGrainAmount = baseIntensity * 1.5; // More grain in shadows
+            double midtoneGrainAmount = baseIntensity;      // Normal grain in midtones
+            double highlightGrainAmount = baseIntensity * 0.7; // Less grain in highlights
+            
+            // Create shadow grain component
+            Mat shadowGrain = new Mat();
+            Core.multiply(normalizedNoise, new Scalar(shadowGrainAmount), shadowGrain);
+            Core.multiply(shadowGrain, shadowMask, shadowGrain);
+            
+            // Create highlight grain component
+            Mat highlightGrain = new Mat();
+            Core.multiply(normalizedNoise, new Scalar(highlightGrainAmount), highlightGrain);
+            Core.multiply(highlightGrain, highlightMask, highlightGrain);
+            
+            // Create midtone grain component (areas that are neither shadows nor highlights)
+            Mat midtoneMask = new Mat(shadowMask.size(), CvType.CV_32F, new Scalar(1.0));
+            Core.subtract(midtoneMask, shadowMask, midtoneMask);
+            Core.subtract(midtoneMask, highlightMask, midtoneMask);
+            
+            Mat midtoneGrain = new Mat();
+            Core.multiply(normalizedNoise, new Scalar(midtoneGrainAmount), midtoneGrain);
+            Core.multiply(midtoneGrain, midtoneMask, midtoneGrain);
+            
+            // Combine all grain components
+            Mat combinedGrain = new Mat(channelF.size(), CvType.CV_32F, new Scalar(0));
+            Core.add(combinedGrain, shadowGrain, combinedGrain);
+            Core.add(combinedGrain, midtoneGrain, combinedGrain);
+            Core.add(combinedGrain, highlightGrain, combinedGrain);
+            
+            // Apply grain using overlay blend mode simulation for more natural look
+            // This prevents the burning effect by preserving image contrast
+            Mat result = new Mat();
+            
+            // Overlay blend mode: if grain < 0, result = 2 * channel * grain
+            //                      if grain >= 0, result = 1 - 2 * (1 - channel) * (1 - grain)
+            // Simplified for small grain values to: channel + channel * grain
+            Core.multiply(channelF, combinedGrain, result);
+            Core.add(channelF, result, channelF);
+            
+            // Convert back to 8-bit and update channel
+            channelF.convertTo(channel, CvType.CV_8UC1);
+            
+            // Ensure we don't exceed valid pixel range
+            Core.min(channel, new Scalar(255), channel);
+            Core.max(channel, new Scalar(0), channel);
+            
+            // Update the channel
+            channels.set(i, channel);
+            
+            // Clean up
+            channelF.release();
+            shadowGrain.release();
+            midtoneGrain.release();
+            highlightGrain.release();
+            midtoneMask.release();
+            combinedGrain.release();
+            result.release();
+        }
+        
+        // Merge channels back
+        Core.merge(channels, img);
+        
+        // Clean up
+        luminance.release();
         noise.release();
-        noiseBGR.release();
+        normalizedNoise.release();
+        shadowMask.release();
+        highlightMask.release();
+        
+        // Release channel mats
+        for (Mat ch : channels) {
+            ch.release();
+        }
     }
 
     private static void addHalation(Mat img, double strength, EffectParameters parameters) {
@@ -292,7 +482,6 @@ public class ImageProcessor {
             ch.release();
         }
     }
-
     private static void addSoftBloom(Mat img, double strength, EffectParameters parameters) {
         // Convert to Lab for better highlight detection
         Mat lab = new Mat();
@@ -302,53 +491,69 @@ public class ImageProcessor {
         List<Mat> channels = new ArrayList<>();
         Core.split(lab, channels);
         
-        // Create highlight mask from L channel
+        // Create highlight mask from L channel (lower threshold for more highlights)
         Mat highlightMask = new Mat();
-        Imgproc.threshold(channels.get(0), highlightMask, 200, 255, Imgproc.THRESH_BINARY);
+        Imgproc.threshold(channels.get(0), highlightMask, 180, 255, Imgproc.THRESH_BINARY);
         
-        // Apply Gaussian blur with size from parameters (ensure odd number)
-        int bloomSize = parameters.getBloomSize() | 1;
-        Mat bloom = new Mat();
-        Imgproc.GaussianBlur(highlightMask, bloom, new Size(bloomSize, bloomSize), 0);
+        // Dilate highlights to make them more pronounced
+        Mat dilated = new Mat();
+        Imgproc.dilate(highlightMask, dilated, new Mat(), new Point(-1, -1), 2);
+        
+        // First pass: Small blur for detail
+        Mat bloomPass1 = new Mat();
+        Imgproc.GaussianBlur(dilated, bloomPass1, new Size(15, 15), 0);
+        
+        // Second pass: Larger blur for spread
+        Mat bloomPass2 = new Mat();
+        Imgproc.GaussianBlur(bloomPass1, bloomPass2, new Size(45, 45), 0);
         
         // Normalize bloom
-        Core.normalize(bloom, bloom, 0, 1, Core.NORM_MINMAX, CvType.CV_32F);
+        Core.normalize(bloomPass2, bloomPass2, 0, 1, Core.NORM_MINMAX, CvType.CV_32F);
         
-        // Create 3-channel bloom mask
+        // Create Mats filled with scalar values for multiplication
+        Mat greenScalar = new Mat(bloomPass2.size(), bloomPass2.type(), new Scalar(0.8));
+        Mat blueScalar = new Mat(bloomPass2.size(), bloomPass2.type(), new Scalar(0.6));
+        
+        // Create 3-channel bloom mask with warm tint (yellow/orange)
         Mat bloomMask = new Mat();
         List<Mat> bloomChannels = new ArrayList<>();
-        bloomChannels.add(bloom);
-        bloomChannels.add(bloom);
-        bloomChannels.add(bloom);
+        bloomChannels.add(bloomPass2);
+        Mat greenChannel = new Mat();
+        Core.multiply(bloomPass2, greenScalar, greenChannel);
+        bloomChannels.add(greenChannel);  // Reduce green
+        Mat blueChannel = new Mat();
+        Core.multiply(bloomPass2, blueScalar, blueChannel);
+        bloomChannels.add(blueChannel);   // Reduce blue (warmer tint)
         Core.merge(bloomChannels, bloomMask);
         
         // Convert original image to float
         Mat imgFloat = new Mat();
         img.convertTo(imgFloat, CvType.CV_32F);
         
-        // Create bloom effect
+        // Create bloom effect with direct addition (stronger effect)
         Mat bloomEffect = new Mat();
         Core.multiply(imgFloat, bloomMask, bloomEffect);
         
         // Blend with original using intensity from parameters
-        double effectStrength = strength * parameters.getBloomIntensity();
-        Core.addWeighted(imgFloat, 1.0 - effectStrength, bloomEffect, effectStrength, 0, imgFloat);
-        
+        double effectStrength = strength * parameters.getBloomIntensity() * 2.5;  // Increased multiplier
+        Core.addWeighted(imgFloat, 1.0, bloomEffect, effectStrength, 0, imgFloat);
         // Convert back to original type
         imgFloat.convertTo(img, img.type());
-        
+
         // Clean up
         lab.release();
         highlightMask.release();
-        bloom.release();
+        dilated.release();
+        bloomPass1.release();
+        bloomPass2.release();
         bloomMask.release();
         imgFloat.release();
         bloomEffect.release();
-        for (Mat ch : channels) {
-            ch.release();
-        }
-        for (Mat ch : bloomChannels) {
-            ch.release();
-        }
+        greenScalar.release();
+        blueScalar.release();
+        greenChannel.release();
+        blueChannel.release();
+        for (Mat ch : channels) ch.release();
+        for (Mat ch : bloomChannels) ch.release();
     }
-} 
+}

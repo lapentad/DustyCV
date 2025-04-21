@@ -57,4 +57,19 @@
     <string name="halation_settings">Halation Settings</string>
     <string name="bloom_settings">Bloom Settings</string>
     <string name="apply">Apply</string>
+    <string name="film_type">Film Type</string>
+    <string name="film_type_neutral">Neutral</string>
+    <string name="film_type_kodak_50d">Kodak Vision3 50D</string>
+    <string name="film_type_kodak_200t">Kodak Vision3 200T</string>
+    <string name="film_type_kodak_250d">Kodak Vision3 250D</string>
+    <string name="film_type_kodak_500t">Kodak Vision3 500T</string>
+    <string name="film_type_description">Select film type simulation</string>
+    <string name="film_info">Film Info</string>
+    <string name="film_info_title">Film Stock Information</string>
+    <string name="film_info_neutral">Neutral film with balanced color reproduction and standard contrast.</string>
+    <string name="film_info_kodak_50d">Kodak Vision3 50D: Daylight balanced film with relatively low contrast. Best for sunny outdoor scenes during daytime. Classic western movie look with good shadow detail and gentle highlight handling.</string>
+    <string name="film_info_kodak_200t">Kodak Vision3 200T: Tungsten balanced film with low contrast. Designed for studio lighting with a warm overall look. Also suitable for sunrise/sunset or indoor scenes. Excellent for dramatic cinematography.</string>
+    <string name="film_info_kodak_250d">Kodak Vision3 250D: Daylight balanced film with high contrast. Ideal for cloudy weather or shade. Produces punchy images with vibrant colors. Great for scenes that need more visual impact.</string>
+    <string name="film_info_kodak_500t">Kodak Vision3 500T: Tungsten balanced film with low contrast for nighttime and low-light shooting. Characteristic look with slightly cyan shadows. Commonly used for atmospheric night scenes and moody interiors.</string>
+    <string name="close">Close</string>
 </resources>
